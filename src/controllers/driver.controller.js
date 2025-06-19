@@ -1,6 +1,8 @@
 const Driver = require('../models/driver.model');
 const Booking = require('../models/booking.model');
 const { generateToken, isValidEmail, isValidPhoneNumber } = require('../utils/common.utils');
+const { calculateDistance } = require('../utils/common.utils');
+const webSocketService = require('../services/websocket.service');
 
 // Register a new driver
 const register = async (req, res) => {
@@ -128,13 +130,80 @@ const updateProfile = async (req, res) => {
 // Update driver location
 const updateLocation = async (req, res) => {
   try {
-    const { coordinates } = req.body;
-    req.user.currentLocation = {
+    const { latitude, longitude } = req.body;
+    const driverId = req.driver._id;
+
+    // Update driver's current location in database
+    const driver = await Driver.findById(driverId);
+    driver.currentLocation = {
       type: 'Point',
-      coordinates
+      coordinates: [longitude, latitude]
     };
-    await req.user.save();
-    res.json({ message: 'Location updated successfully' });
+    await driver.save();
+
+    // Find active booking for this driver
+    const activeBooking = await Booking.findOne({
+      driver: driverId,
+      status: { $in: ['accepted', 'in_progress'] }
+    });
+
+    if (activeBooking) {
+      // Calculate distance and ETA
+      const distance = calculateDistance(
+        latitude,
+        longitude,
+        activeBooking.pickupAddress.coordinates[1],
+        activeBooking.pickupAddress.coordinates[0]
+      );
+      const estimatedTime = Math.ceil(distance * 2); // Rough estimate: 2 minutes per km
+
+      // Prepare location data
+      const locationData = {
+        latitude,
+        longitude,
+        distance,
+        estimatedTime
+      };
+
+      // Broadcast location update through WebSocket
+      webSocketService.broadcastDriverLocation(activeBooking._id, locationData);
+      
+      // Broadcast ETA update
+      webSocketService.broadcastETA(activeBooking._id, estimatedTime);
+    }
+
+    res.json({ 
+      message: 'Location updated successfully',
+      isDriverConnected: webSocketService.isDriverConnected(driverId)
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Update booking status
+const updateBookingStatus = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const { status } = req.body;
+    const driverId = req.driver._id;
+
+    const booking = await Booking.findOne({
+      _id: bookingId,
+      driver: driverId
+    });
+
+    if (!booking) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
+
+    booking.status = status;
+    await booking.save();
+
+    // Broadcast status update through WebSocket
+    webSocketService.broadcastBookingStatus(bookingId, status);
+
+    res.json({ message: 'Booking status updated successfully' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -191,6 +260,7 @@ module.exports = {
   getProfile,
   updateProfile,
   updateLocation,
+  updateBookingStatus,
   getEarnings,
   getBookingHistory,
   updateAvailability,

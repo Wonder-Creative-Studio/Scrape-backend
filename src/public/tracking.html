@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Tracking - Scrap Pickup</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <style>
+        #map {
+            height: 400px;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        .tracking-info {
+            padding: 20px;
+            background: #f5f5f5;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+        }
+        .status-pending { background: #ffd700; }
+        .status-accepted { background: #90EE90; }
+        .status-in_progress { background: #87CEEB; }
+        .status-completed { background: #98FB98; }
+        .status-cancelled { background: #FFB6C1; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Live Tracking</h1>
+        
+        <div id="map"></div>
+        
+        <div class="tracking-info">
+            <h2>Booking Status: <span id="booking-status" class="status">Pending</span></h2>
+            <div class="info-grid">
+                <div>
+                    <h3>Distance to Pickup</h3>
+                    <p id="distance">-- km</p>
+                </div>
+                <div>
+                    <h3>Estimated Time</h3>
+                    <p id="eta">-- mins</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load required scripts -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY"></script>
+    <script src="/js/tracking.js"></script>
+    <script>
+        // Initialize tracking when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const bookingId = urlParams.get('bookingId');
+            
+            if (bookingId) {
+                const tracking = new LiveTracking('map', bookingId);
+                
+                // Fetch booking details and set pickup location
+                fetch(`/api/bookings/${bookingId}`)
+                    .then(response => response.json())
+                    .then(booking => {
+                        const pickupLocation = {
+                            lat: booking.pickupAddress.coordinates[1],
+                            lng: booking.pickupAddress.coordinates[0]
+                        };
+                        tracking.setPickupLocation(pickupLocation);
+                    })
+                    .catch(error => console.error('Error fetching booking details:', error));
+            }
+        });
+    </script>
+</body>
+</html> 

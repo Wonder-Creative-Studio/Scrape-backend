@@ -37,8 +37,15 @@ const register = async (req, res) => {
 
     await user.save();
 
+    // Create wallet for the user
+    const Wallet = require('../models/wallet.model');
+    await Wallet.findOrCreate(user._id);
+
     // Generate token
     const token = generateToken(user._id);
+    user.tokens = user.tokens || [];
+    user.tokens.push({ token });
+    await user.save();
 
     res.status(201).json({
       user: {
@@ -74,6 +81,9 @@ const login = async (req, res) => {
 
     // Generate token
     const token = generateToken(user._id);
+    user.tokens = user.tokens || [];
+    user.tokens.push({ token });
+    await user.save();
 
     res.json({
       user: {

@@ -92,6 +92,13 @@ const formatDate = (date) => {
   return moment(date).format('DD MMM YYYY, hh:mm A');
 };
 
+// Generate reference
+const generateReference = (prefix = '') => {
+  const timestamp = Date.now().toString();
+  const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+  return `${prefix}${timestamp}${random}`;
+};
+
 module.exports = {
   generateToken,
   calculateDistance,
@@ -101,5 +108,6 @@ module.exports = {
   calculateBookingPoints,
   isValidPhoneNumber,
   isValidEmail,
-  formatDate
+  formatDate,
+  generateReference
 }; 
